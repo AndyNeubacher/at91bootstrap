@@ -12,12 +12,6 @@ ASFLAGS += \
 
 include board/chips.mk
 
-ifeq (board/$(BOARDNAME)/board.mk, $(wildcard board/$(BOARDNAME)/board.mk))
-include	board/$(BOARDNAME)/board.mk
-else
-$(warning WARNING: *** file: board/$(BOARDNAME)/board.mk are not found!)
-endif
-
 ifeq ($(CONFIG_THUMB),y)
 CPPFLAGS += -DCONFIG_THUMB -mthumb -mthumb-interwork
 ASFLAGS += -DCONFIG_THUMB -mthumb-interwork
@@ -99,6 +93,14 @@ ifeq ($(CONFIG_CPU_CLK_528MHZ),y)
 CPPFLAGS += -DCONFIG_CPU_CLK_528MHZ
 endif
 
+ifeq ($(CONFIG_CPU_CLK_594MHZ),y)
+CPPFLAGS += -DCONFIG_CPU_CLK_594MHZ
+endif
+
+ifeq ($(CONFIG_CPU_CLK_600MHZ),y)
+CPPFLAGS += -DCONFIG_CPU_CLK_600MHZ
+endif
+
 # Bus speed
 
 ifeq ($(CONFIG_BUS_SPEED_83MHZ),y)
@@ -111,6 +113,10 @@ endif
 
 ifeq ($(CONFIG_BUS_SPEED_100MHZ),y)
 CPPFLAGS += -DCONFIG_BUS_SPEED_100MHZ
+endif
+
+ifeq ($(CONFIG_BUS_SPEED_124MHZ),y)
+CPPFLAGS += -DCONFIG_BUS_SPEED_124MHZ
 endif
 
 ifeq ($(CONFIG_BUS_SPEED_133MHZ),y)
@@ -133,10 +139,14 @@ ifeq ($(CONFIG_BUS_SPEED_176MHZ),y)
 CPPFLAGS += -DCONFIG_BUS_SPEED_176MHZ
 endif
 
+ifeq ($(CONFIG_BUS_SPEED_200MHZ),y)
+CPPFLAGS += -DCONFIG_BUS_SPEED_200MHZ
+endif
+
 # other
 
-ifeq ($(CONFIG_HAS_PIO3),y)
-CPPFLAGS += -DCONFIG_HAS_PIO3
+ifeq ($(CPU_HAS_PIO3),y)
+CPPFLAGS += -DCPU_HAS_PIO3
 endif
 
 ifeq ($(CONFIG_LOAD_ONE_WIRE), y)
@@ -145,10 +155,6 @@ endif
 
 ifeq ($(CONFIG_LOAD_EEPROM), y)
 CPPFLAGS += -DCONFIG_LOAD_EEPROM
-endif
-
-ifeq ($(CONFIG_MMC_SUPPORT), y)
-CPPFLAGS += -DCONFIG_MMC_SUPPORT
 endif
 
 ifeq ($(CONFIG_CPU_V7), y)
@@ -167,4 +173,8 @@ endif
 
 ifeq ($(CONFIG_REDIRECT_ALL_INTS_AIC), y)
 CPPFLAGS += -DCONFIG_REDIRECT_ALL_INTS_AIC
+endif
+
+ifeq ($(CPU_HAS_H32MXDIV), y)
+CPPFLAGS += -DCPU_HAS_H32MXDIV
 endif

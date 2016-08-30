@@ -9,7 +9,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -28,13 +28,12 @@
 #ifndef __TWI_H__
 #define __TWI_H__
 
-extern unsigned int at91_twi0_base;
-extern unsigned int at91_twi1_base;
-extern unsigned int at91_twi2_base;
-extern unsigned int at91_twi3_base;
+extern unsigned char hdmi_twi_bus;
+extern unsigned char wm8904_twi_bus;
+extern unsigned char act8865_twi_bus;
+extern unsigned char at24xx_twi_bus;
 
-extern int twi_configure_master_mode(unsigned int twi_no,
-				unsigned int bus_clock, unsigned int twi_clock);
+extern unsigned int twi_init_done;
 
 extern int twi_read(unsigned int twi_no, unsigned char device_addr,
 		unsigned int internal_addr, unsigned char iaddr_size,
@@ -43,5 +42,7 @@ extern int twi_read(unsigned int twi_no, unsigned char device_addr,
 extern int twi_write(unsigned int twi_no, unsigned char device_addr,
 		unsigned int internal_addr, unsigned char iaddr_size,
 		unsigned char *data, unsigned int bytes);
+
+extern void twi_init(void);
 
 #endif

@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -93,11 +93,13 @@
 #define 	AT91C_DDRC2_CAS_3		(0x3UL << 4)
 #define 	AT91C_DDRC2_CAS_4		(0x4UL << 4)
 #define 	AT91C_DDRC2_CAS_5		(0x5UL << 4)
-#define 	AT91C_DDRC2_CAS_2_5		(0x6UL << 4)
+#define 	AT91C_DDRC2_CAS_6		(0x6UL << 4)
 #define AT91C_DDRC2_DLL		(0x1UL << 7)
 #define 	AT91C_DDRC2_DLL_RESET_DISABLED	(0x0UL << 7)
 #define 	AT91C_DDRC2_DLL_RESET_ENABLED	(0x1UL << 7)
 #define AT91C_DDRC2_DIC_DS	(0x1UL << 8)
+#define		AT91C_DDRC2_NORMAL_STRENGTH_RZQ6	(0x0UL << 8)
+#define		AT91C_DDRC2_WEAK_STRENGTH_RZQ7		(0x1UL << 8)
 #define AT91C_DDRC2_DIS_DLL	(0x1UL << 9)
 #define 	AT91C_DDRC2_DIS_DLL_DISABLED	(0x0UL << 9)
 #define 	AT91C_DDRC2_DIS_DLL_ENABLED	(0x1UL << 9)
@@ -178,7 +180,9 @@
 #define 	AT91C_DDRC2_LPCB_DEEP_PWD	(0x3UL)
 #define AT91C_DDRC2_CLK_FR	(0x1UL << 2)
 #define AT91C_DDRC2_PASR	(0x7UL << 4)
+#define		AT91C_DDRC2_PASR_(x)		((x & 0x7) << 4)
 #define AT91C_DDRC2_DS		(0x7UL << 8)
+#define		AT91C_DDRC2_DS_(x)		((x & 0x7) << 8)
 #define AT91C_DDRC2_TIMEOUT	(0x3UL << 12)
 #define 	AT91C_DDRC2_TIMEOUT_0		(0x0UL << 12)
 #define 	AT91C_DDRC2_TIMEOUT_64		(0x1UL << 12)
@@ -188,6 +192,9 @@
 #define 	AT91C_DDRC2_ADPE_FAST		(0x0UL << 16)
 #define 	AT91C_DDRC2_ADPE_SLOW		(0x1UL << 16)
 #define AT91C_DDRC2_UPD_MR	(0x3UL << 20)
+#define		AT91C_DDRC2_UPD_MR_NO_UPDATE		(0x0UL << 20)
+#define		AT91C_DDRC2_UPD_MR_SHARED_BUS		(0x1UL << 20)
+#define		AT91C_DDRC2_UPD_MR_NO_SHARED_BUS	(0x2UL << 20)
 
 /* -------- HDDRSDRC2_MDR : (HDDRSDRC2 Offset: 0x20) Memory Device Register -------- */
 #define AT91C_DDRC2_MD		(0x7UL << 0)
@@ -195,6 +202,8 @@
 #define 	AT91C_DDRC2_MD_LP_SDR_SDRAM	(0x1UL)
 #define 	AT91C_DDRC2_MD_DDR_SDRAM	(0x2UL)
 #define 	AT91C_DDRC2_MD_LP_DDR_SDRAM	(0x3UL)
+#define 	AT91C_DDRC2_MD_DDR3_SDRAM	(0x4UL)
+#define 	AT91C_DDRC2_MD_LPDDR3_SDRAM	(0x5UL)
 #define 	AT91C_DDRC2_MD_DDR2_SDRAM	(0x6UL)
 #define		AT91C_DDRC2_MD_LPDDR2_SDRAM	(0x7UL)
 #define AT91C_DDRC2_DBW		(0x1UL << 4)
@@ -230,11 +239,18 @@
 #define		AT91C_MPDDRC_RDIV_DDR2_RZQ_66_7		(0x6UL << 0)
 #define 	AT91C_MPDDRC_RDIV_DDR2_RZQ_100		(0x7UL << 0)
 
+#define		AT91C_MPDDRC_RDIV_LPDDR3_RZQ_38		(0x02UL << 0)
+#define		AT91C_MPDDRC_RDIV_LPDDR3_RZQ_46		(0x03UL << 0)
+#define		AT91C_MPDDRC_RDIV_LPDDR3_RZQ_57		(0x04UL << 0)
+#define		AT91C_MPDDRC_RDIV_LPDDR3_RZQ_77		(0x06UL << 0)
+#define		AT91C_MPDDRC_RDIV_LPDDR3_RZQ_115	(0x07UL << 0)
+
 #define	AT91C_MPDDRC_ENABLE_CALIB	(0x01 << 4)
 #define		AT91C_MPDDRC_DISABLE_CALIB		(0x00 << 4)
 #define		AT91C_MPDDRC_EN_CALIB		(0x01 << 4)
 
-#define	AT91C_MPDDRC_TZQIO	(0x1FUL << 8)
+#define	AT91C_MPDDRC_TZQIO	(0x7FUL << 8)
+#define	AT91C_MPDDRC_TZQIO_(x)		((x) << 8)
 #define		AT91C_MPDDRC_TZQIO_0	(0x0UL << 8)
 #define		AT91C_MPDDRC_TZQIO_1	(0x1UL << 8)
 #define		AT91C_MPDDRC_TZQIO_3	(0x3UL << 8)

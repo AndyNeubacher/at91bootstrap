@@ -1,5 +1,4 @@
 menu  "NAND flash configuration"
-	depends on CONFIG_NANDFLASH
 
 choice
 	prompt "ECC Configuration"
@@ -81,12 +80,10 @@ config CONFIG_NANDFLASH_SMALL_BLOCKS
 config CONFIG_NANDFLASH_RECOVERY
 	bool "Support NAND flash recovery by pressing a button"
 	default y
-	depends on CONFIG_NANDFLASH
 	depends on ALLOW_NANDFLASH_RECOVERY
 	help
-	  Let bootstrap disassemble the first 7 double words
-	  and check that all, except the reserved vector
-	  contains a jump/branch
+	  Support erasing first NAND flash block by pressing a recovery
+	  button.
 
 config CONFIG_ONFI_DETECT_SUPPORT
 	bool "Support NAND flash ONFI detect function"

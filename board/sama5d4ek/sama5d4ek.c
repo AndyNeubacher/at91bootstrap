@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2012, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,6 @@
 #include "ddramc.h"
 #include "spi.h"
 #include "gpio.h"
-#include "slowclk.h"
 #include "timer.h"
 #include "watchdog.h"
 #include "string.h"
@@ -47,33 +46,10 @@
 #include "arch/tz_matrix.h"
 #include "sama5d4ek.h"
 #include "tz_utils.h"
+#include "l2cc.h"
 #include "matrix.h"
-#include "twi.h"
 #include "act8865.h"
-#include "hdmi_SiI9022.h"
-#include "wm8904.h"
-#include "macb.h"
-
-#if defined(CONFIG_REDIRECT_ALL_INTS_AIC)
-static void redirect_interrupts_to_aic(void)
-{
-	unsigned int key32;
-
-	if (!(readl(SFR_AICREDIR + AT91C_BASE_SFR) & 0x01)) {
-		key32 = readl(SFR_SN1 + AT91C_BASE_SFR) ^ AICREDIR_KEY;
-		writel(((key32 & ~0x01) | 0x1), SFR_AICREDIR + AT91C_BASE_SFR);
-			/* bits[31:1] = key */
-			/* bit[0] = 1 => all interrupts redirected to AIC */
-			/* bit[0] = 0 => secure interrupts directed to SAIC,
-						others to AIC (default) */
-
-		if ((readl(SFR_AICREDIR + AT91C_BASE_SFR) & 0x01))
-			dbg_info("\nAll interupts redirected to AIC\n");
-	}
-}
-#else
-static void redirect_interrupts_to_aic(void) {}
-#endif
+#include "twi.h"
 
 static void at91_dbgu_hw_init(void)
 {
@@ -93,7 +69,11 @@ static void initialize_dbgu(void)
 	unsigned int baudrate = 115200;
 
 	at91_dbgu_hw_init();
-	usart_init(BAUDRATE(MASTER_CLOCK / 2, baudrate));
+
+	if (pmc_check_mck_h32mxdiv())
+		usart_init(BAUDRATE(MASTER_CLOCK / 2, baudrate));
+	else
+		usart_init(BAUDRATE(MASTER_CLOCK, baudrate));
 }
 
 #ifdef CONFIG_DDR2
@@ -186,6 +166,30 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 			| AT91C_DDRC2_TXARDS_(2)
 			| AT91C_DDRC2_TXARD_(8));
 
+#elif defined(CONFIG_BUS_SPEED_200MHZ)
+
+	ddramc_config->rtr = 0x30e;
+
+	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(8)
+			| AT91C_DDRC2_TRCD_(3)
+			| AT91C_DDRC2_TWR_(3)
+			| AT91C_DDRC2_TRC_(11)
+			| AT91C_DDRC2_TRP_(3)
+			| AT91C_DDRC2_TRRD_(2)
+			| AT91C_DDRC2_TWTR_(2)
+			| AT91C_DDRC2_TMRD_(2));
+
+	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(2)
+			| AT91C_DDRC2_TXSRD_(200)
+			| AT91C_DDRC2_TXSNR_(28)
+			| AT91C_DDRC2_TRFC_(26));
+
+	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(7)
+			| AT91C_DDRC2_TRTP_(2)
+			| AT91C_DDRC2_TRPA_(3)
+			| AT91C_DDRC2_TXARDS_(2)
+			| AT91C_DDRC2_TXARD_(8));
+
 #else
 #error "No CLK setting defined"
 #endif
@@ -205,6 +209,8 @@ static void ddramc_init(void)
 	/* configure Shift Sampling Point of Data */
 #if defined(CONFIG_BUS_SPEED_148MHZ)
 	reg = AT91C_MPDDRC_RD_DATA_PATH_NO_SHIFT;
+#elif defined(CONFIG_BUS_SPEED_200MHZ)
+	reg = AT91C_MPDDRC_RD_DATA_PATH_TWO_CYCLES;
 #else
 	reg = AT91C_MPDDRC_RD_DATA_PATH_ONE_CYCLES;
 #endif
@@ -229,7 +235,7 @@ static void ddramc_init(void)
 	/* DDRAM2 Controller initialize */
 	ddram_initialize(AT91C_BASE_MPDDRC, AT91C_BASE_DDRCS, &ddramc_reg);
 
-	ddramc_print_config_regs(AT91C_BASE_MPDDRC);
+	ddramc_dump_regs(AT91C_BASE_MPDDRC);
 }
 #endif /* #ifdef CONFIG_DDR2 */
 
@@ -456,8 +462,8 @@ static int matrix_init(void)
 {
 	int ret;
 
-	matrix_write_disable(AT91C_BASE_MATRIX64);
-	matrix_write_disable(AT91C_BASE_MATRIX32);
+	matrix_write_protect_disable(AT91C_BASE_MATRIX64);
+	matrix_write_protect_disable(AT91C_BASE_MATRIX32);
 
 	ret = matrix_configure_slave();
 	if (ret)
@@ -471,13 +477,11 @@ static int matrix_init(void)
 }
 #endif	/* #if defined(CONFIG_MATRIX) */
 
-#ifdef CONFIG_TWI
-
-#define TWI_CLOCK	400000
-
 #if defined(CONFIG_TWI0)
-static void at91_twi0_hw_init(void)
+unsigned int at91_twi0_hw_init(void)
 {
+	unsigned int base_addr = AT91C_BASE_TWI0;
+
 	const struct pio_desc twi_pins[] = {
 		{"TWD0", AT91C_PIN_PA(30), 0, PIO_DEFAULT, PIO_PERIPH_A},
 		{"TWCK0", AT91C_PIN_PA(31), 0, PIO_DEFAULT, PIO_PERIPH_A},
@@ -488,12 +492,30 @@ static void at91_twi0_hw_init(void)
 	pio_configure(twi_pins);
 
 	pmc_enable_periph_clock(AT91C_ID_TWI0);
+
+	return base_addr;
+}
+#endif
+
+#if defined(CONFIG_TWI1)
+unsigned int at91_twi1_hw_init(void)
+{
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_TWI2)
+unsigned int at91_twi2_hw_init(void)
+{
+	return 0;
 }
 #endif
 
 #if defined(CONFIG_TWI3)
-static void at91_twi3_hw_init(void)
+unsigned int at91_twi3_hw_init(void)
 {
+	unsigned int base_addr = AT91C_BASE_TWI3;
+
 	const struct pio_desc twi_pins[] = {
 		{"TWD3", AT91C_PIN_PC(25), 0, PIO_DEFAULT, PIO_PERIPH_B},
 		{"TWCK3", AT91C_PIN_PC(26), 0, PIO_DEFAULT, PIO_PERIPH_B},
@@ -504,33 +526,22 @@ static void at91_twi3_hw_init(void)
 	pio_configure(twi_pins);
 
 	pmc_enable_periph_clock(AT91C_ID_TWI3);
+
+	return base_addr;
 }
 #endif
 
-static void twi_init(void)
+#if defined(CONFIG_AUTOCONFIG_TWI_BUS)
+void at91_board_config_twi_bus(void)
 {
-	unsigned int bus_clock = MASTER_CLOCK / 2;
-
-#if defined(CONFIG_TWI0)
-	at91_twi0_base = AT91C_BASE_TWI0;
-	at91_twi0_hw_init();
-	twi_configure_master_mode(0, bus_clock, TWI_CLOCK);
-#endif
-
-#if defined(CONFIG_TWI3)
-	at91_twi3_base = AT91C_BASE_TWI3;
-	at91_twi3_hw_init();
-	twi_configure_master_mode(3, bus_clock, TWI_CLOCK);
-#endif
-
-#if !defined(CONFIG_TWI0) && !defined(CONFIG_TWI3)
-#error "No proper TWI bus defined"
-#endif
+	hdmi_twi_bus	= 0;
+	wm8904_twi_bus	= 0;
+	act8865_twi_bus	= 0;
 }
-#endif /* #ifdef CONFIG_TWI */
+#endif
 
-#ifdef CONFIG_ACT8865
-static int sama5d4ek_act8865_set_reg_voltage(void)
+#if defined(CONFIG_ACT8865_SET_VOLTAGE)
+int at91_board_act8865_set_reg_voltage(void)
 {
 	unsigned char reg, value;
 	int ret;
@@ -544,28 +555,25 @@ static int sama5d4ek_act8865_set_reg_voltage(void)
 	value = ACT8865_3V3;
 	ret = act8865_set_reg_voltage(reg, value);
 	if (ret) {
-		dbg_info("ACT8865: Failed to make REG5 output 3300mV\n");
+		dbg_loud("ACT8865: Failed to make REG5 output 3300mV\n");
 		return -1;
 	}
-
-	dbg_info("ACT8865: The REG5 output 3300mV\n");
 
 	/* Enable REG6 output 1.8V */
 	reg = REG6_0;
 	value = ACT8865_1V8;
 	ret = act8865_set_reg_voltage(reg, value);
 	if (ret) {
-		dbg_info("ACT8865: Failed to make REG6 output 1800mV\n");
+		dbg_loud("ACT8865: Failed to make REG6 output 1800mV\n");
 		return -1;
 	}
-
-	dbg_info("ACT8865: The REG6 output 1800mV\n");
 
 	return 0;
 }
 #endif
 
-static void at91_disable_smd_clock(void)
+#if defined(CONFIG_PM)
+void at91_disable_smd_clock(void)
 {
 	/*
 	 * set pin DIBP to pull-up and DIBN to pull-down
@@ -578,6 +586,7 @@ static void at91_disable_smd_clock(void)
 	pmc_disable_periph_clock(AT91C_ID_SMD);
 	pmc_disable_system_clock(AT91C_PMC_SMDCK);
 }
+#endif
 
 static void SiI9022_hw_reset(void)
 {
@@ -587,11 +596,11 @@ static void SiI9022_hw_reset(void)
 	pio_set_gpio_output(CONFIG_SYS_HDMI_RESET_PIN, 1);
 }
 
-#if defined(CONFIG_PM_EXTERNAL_DEVICES)
-#if defined(CONFIG_MACB)
 #if defined(CONFIG_MAC0_PHY)
-static void gmac0_hw_init(void)
+unsigned int at91_eth0_hw_init(void)
 {
+	unsigned int base_addr = AT91C_BASE_GMAC;
+
 	const struct pio_desc macb_pins[] = {
 		{"G0_MDC",	AT91C_PIN_PB(16), 0, PIO_DEFAULT, PIO_PERIPH_A},
 		{"G0_MDIO",	AT91C_PIN_PB(17), 0, PIO_DEFAULT, PIO_PERIPH_A},
@@ -600,12 +609,18 @@ static void gmac0_hw_init(void)
 
 	pio_configure(macb_pins);
 	pmc_enable_periph_clock(AT91C_ID_PIOB);
+
+	pmc_enable_periph_clock(AT91C_ID_GMAC);
+
+	return base_addr;
 }
 #endif
 
 #if defined(CONFIG_MAC1_PHY)
-static void gmac1_hw_init(void)
+unsigned int at91_eth1_hw_init(void)
 {
+	unsigned int base_addr = AT91C_BASE_GMAC1;
+
 	const struct pio_desc macb_pins[] = {
 		{"G1_MDC",	AT91C_PIN_PA(22), 0, PIO_DEFAULT, PIO_PERIPH_B},
 		{"G1_MDIO",	AT91C_PIN_PA(23), 0, PIO_DEFAULT, PIO_PERIPH_B},
@@ -614,51 +629,24 @@ static void gmac1_hw_init(void)
 
 	pio_configure(macb_pins);
 	pmc_enable_periph_clock(AT91C_ID_PIOA);
-}
-#endif
-
-static int phys_enter_power_down(void)
-{
-	struct mii_bus macb_mii_bus;
-
-#if defined(CONFIG_MAC0_PHY)
-	gmac0_hw_init();
-
-	macb_mii_bus.name = "GMAC0 KSZ8081RNB";
-	macb_mii_bus.reg_base = (void *)AT91C_BASE_GMAC;
-	macb_mii_bus.phy_addr = 1;
-
-	pmc_enable_periph_clock(AT91C_ID_GMAC);
-
-	if (phy_power_down_mode(&macb_mii_bus)) {
-		dbg_loud("%s: Failed to enter power down mode\n",
-						macb_mii_bus.name);
-	}
-
-	pmc_disable_periph_clock(AT91C_ID_GMAC);
-#endif
-
-#if defined(CONFIG_MAC1_PHY)
-	gmac1_hw_init();
-
-	macb_mii_bus.name = "GMAC1 KSZ8081RNB";
-	macb_mii_bus.reg_base = (void *)AT91C_BASE_GMAC1;
-	macb_mii_bus.phy_addr = 1;
 
 	pmc_enable_periph_clock(AT91C_ID_GMAC1);
 
-	if (phy_power_down_mode(&macb_mii_bus)) {
-		dbg_loud("%s: Failed to enter power down mode\n",
-						macb_mii_bus.name);
-	}
-
-	pmc_disable_periph_clock(AT91C_ID_GMAC1);
+	return base_addr;
+}
 #endif
 
-	return 0;
+#if defined(CONFIG_MACB)
+void at91_disable_mac_clock(void)
+{
+#if defined(CONFIG_MAC0_PHY)
+	pmc_disable_periph_clock(AT91C_ID_GMAC);
+#endif
+#if defined(CONFIG_MAC1_PHY)
+	pmc_disable_periph_clock(AT91C_ID_GMAC1);
+#endif
 }
-#endif	/* #if defined(CONFIG_MACB) */
-#endif	/* #if defined(CONFIG_PM_EXTERNAL_DEVICES) */
+#endif
 
 #ifdef CONFIG_HW_INIT
 void hw_init(void)
@@ -670,18 +658,18 @@ void hw_init(void)
 	 * to be enabled PCK = MCK = MOSC
 	 */
 
+	/* Switch PCK/MCK on Main clock output */
+	pmc_cfg_mck(BOARD_PRESCALER_MAIN_CLOCK);
+
 	/* Configure PLLA = MOSC * (PLL_MULA + 1) / PLL_DIVA */
-	pmc_cfg_plla(PLLA_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_plla(PLLA_SETTINGS);
 
 	/* Initialize PLLA charge pump */
 	/* not needed for SAMA5D4 */
 	pmc_init_pll(0);
 
 	/* Switch MCK on PLLA output */
-	pmc_cfg_mck(BOARD_PRESCALER_PLLA, PLL_LOCK_TIMEOUT);
-
-	/* Setup AHB 32-bit Matrix Divisor */
-	pmc_cfg_h32mxdiv(BOARD_H32MX, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(BOARD_PRESCALER_PLLA);
 
 	/* Enable External Reset */
 	writel(AT91C_RSTC_KEY_UNLOCK | AT91C_RSTC_URSTEN,
@@ -702,9 +690,6 @@ void hw_init(void)
 	/* initialize the dbgu */
 	initialize_dbgu();
 
-	/* Redirect all interrupts to non-secure AIC */
-	redirect_interrupts_to_aic();
-
 #if defined(CONFIG_MATRIX)
 	matrix_read_slave_security();
 	matrix_read_periperal_security();
@@ -723,42 +708,8 @@ void hw_init(void)
 	/* Reset HDMI SiI9022 */
 	SiI9022_hw_reset();
 
-	/* Disable software modem device's clock */
-	at91_disable_smd_clock();
-
-#ifdef CONFIG_TWI
-	twi_init();
-#endif
-
-#ifdef CONFIG_ACT8865
-	/* Set ACT8865 REG power saving mode */
-	act8865_set_power_saving_mode();
-
-	/* Set ACT8865 output voltage */
-	sama5d4ek_act8865_set_reg_voltage();
-
-	/* Dsiable ACT8865 I2C interface */
-	if (act8865_workaround_disable_i2c())
-		while (1)
-			;
-#endif
-
-#ifdef CONFIG_PM_EXTERNAL_DEVICES
-#ifdef CONFIG_HDMI
-	SiI9022_enter_power_state_D3_Cold();
-#endif
-#ifdef CONFIG_WM8904
-	wm8904_enter_low_power();
-#endif
-#ifdef CONFIG_MACB
-	/* Make PHYs to power down mode */
-	phys_enter_power_down();
-#endif
-#endif	/* #ifdef CONFIG_PM_EXTERNAL_DEVICES */
-
-#ifdef CONFIG_USER_HW_INIT
-	hw_init_hook();
-#endif
+	/* Prepare L2 cache setup */
+	l2cache_prepare();
 }
 #endif /* #ifdef CONFIG_HW_INIT */
 
@@ -783,10 +734,12 @@ void at91_spi0_hw_init(void)
 #endif /* #ifdef CONFIG_DATAFLASH */
 
 #ifdef CONFIG_SDCARD
-static void sdcard_set_of_name_board(char *of_name)
+#ifdef CONFIG_OF_LIBFDT
+void at91_board_set_dtb_name(char *of_name)
 {
 	strcpy(of_name, "sama5d4ek.dtb");
 }
+#endif
 
 void at91_mci0_hw_init(void)
 {
@@ -805,9 +758,6 @@ void at91_mci0_hw_init(void)
 	pio_configure(mci_pins);
 	pmc_enable_periph_clock(AT91C_ID_PIOE);
 	pmc_enable_periph_clock(AT91C_ID_HSMCI1);
-
-	/* Set of name function pointer */
-	sdcard_set_of_name = &sdcard_set_of_name_board;
 }
 #endif /* #ifdef CONFIG_SDCARD */
 

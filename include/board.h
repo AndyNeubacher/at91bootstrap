@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -76,6 +76,10 @@
 #include "sama5d3_xplained.h"
 #endif
 
+#ifdef CONFIG_SAMA5D3X_CMP
+#include "sama5d3x_cmp.h"
+#endif
+
 #ifdef CONFIG_SAMA5D4EK
 #include "sama5d4ek.h"
 #endif
@@ -83,5 +87,51 @@
 #ifdef CONFIG_SAMA5D4_XPLAINED
 #include "sama5d4_xplained.h"
 #endif
+
+#ifdef CONFIG_SAMA5D2_PTC
+#include "sama5d2_ptc.h"
+#endif
+
+#ifdef CONFIG_SAMA5D2_XPLAINED
+#include "sama5d2_xplained.h"
+#endif
+
+#include "contrib_board.h"
+
+/*
+ * Functions Prototype
+ */
+extern void hw_init(void);
+
+extern void nandflash_hw_init(void);
+
+extern void at91_spi0_hw_init(void);
+
+extern void at91_qspi_hw_init(void);
+
+extern void at91_mci0_hw_init(void);
+
+extern void at91_sdhc_hw_init(void);
+
+extern void at91_board_set_dtb_name(char *of_name);
+
+extern void norflash_hw_init(void);
+
+extern char *board_override_cmd_line(void);
+
+/* PM Support */
+extern unsigned int at91_twi0_hw_init(void);
+extern unsigned int at91_twi1_hw_init(void);
+extern unsigned int at91_twi2_hw_init(void);
+extern unsigned int at91_twi3_hw_init(void);
+extern void at91_board_config_twi_bus(void);
+
+extern unsigned int at91_eth0_hw_init(void);
+extern unsigned int at91_eth1_hw_init(void);
+extern void at91_disable_mac_clock(void);
+
+extern void at91_disable_smd_clock(void);
+
+extern int at91_board_act8865_set_reg_voltage(void);
 
 #endif /* #ifndef __BOARD_H__ */

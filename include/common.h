@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2012, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 #define	NULL	0
 #endif
 
-#define FILENAME_BUF_LEN	33
+#define FILENAME_BUF_LEN	32
 
 enum {
 	KERNEL_IMAGE,
@@ -47,21 +47,36 @@ enum {
 /* structure definition */
 struct image_info
 {
+#if defined(CONFIG_DATAFLASH) || defined(CONFIG_NANDFLASH) || defined(CONFIG_FLASH)
 	unsigned int offset;
 	unsigned int length;
+#endif
+#ifdef CONFIG_SDCARD
 	char *filename;
+#endif
 	unsigned char *dest;
 
-	unsigned char of;
+#ifdef CONFIG_OF_LIBFDT
+#if defined(CONFIG_DATAFLASH) || defined(CONFIG_NANDFLASH) || defined(CONFIG_FLASH)
 	unsigned int of_offset;
 	unsigned int of_length;
+#endif
+#ifdef CONFIG_SDCARD
 	char *of_filename;
+#endif
 	unsigned char *of_dest;
+#endif
 };
 
-extern void (*sdcard_set_of_name)(char *);
+typedef int (*load_function)(struct image_info *image);
 
-extern unsigned int kernel_size(unsigned char *addr);
+extern load_function load_image;
+extern void init_load_image(struct image_info *image);
+extern void load_image_done(int retval);
+
+extern int load_kernel(struct image_info *image);
+
+extern int kernel_size(unsigned char *addr);
 
 static inline unsigned int swap_uint32(unsigned int data)
 {
@@ -74,6 +89,5 @@ static inline unsigned int swap_uint32(unsigned int data)
 
 	return a | b | c | d;
 }
-
 
 #endif /* #ifdef __COMMON_H__ */

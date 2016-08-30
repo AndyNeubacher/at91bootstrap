@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2013, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,5 +29,7 @@
 #define __RSTC_H__
 
 extern void cpu_reset(void);
+
+extern void rstc_external_reset(void);
 
 #endif	/* #ifndef __RSTC_H__ */

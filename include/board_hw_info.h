@@ -47,6 +47,8 @@
 #define	BOARD_ID_PDA7_DM	15
 #define	BOARD_ID_SAMA5D4_MB	16
 #define	BOARD_ID_SAMA5D4_XULT	17
+#define	BOARD_ID_SAMA5D36_CP	18
+#define	BOARD_ID_SAMA5D2_XULT	19
 
 /* Vendor id definition */
 #define VENDOR_EMBEST		1
@@ -64,6 +66,8 @@ extern unsigned int get_cm_vendor(void);
 extern unsigned int get_dm_sn(void);
 extern unsigned int get_sys_sn(void);
 extern unsigned int get_sys_rev(void);
+extern char get_ek_rev(void);
+extern unsigned int get_ek_sn(void);
 
 extern void load_board_hw_info(void);
 

@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2013, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,15 +28,30 @@
 #ifndef __AT91_SFR_H__
 #define __AT91_SFR_H__
 
+/*
+ * Register Offset
+ */
+#define SFR_DDRCFG	0x04	/* DDR Configuration Register */
+
 #define SFR_OHCXIICR	0x10	/* OHCI Interrupt Configuration Register */
 #define SFR_OHCIISR	0x14	/* OHCI Interrupt Status Register */
 /* Reserved */
 #define SFR_SECURE	0x28	/* Security Configuration Register */
 /* 0x2C ~ 0x3C Reserved */
 #define SFR_EBICFG	0x40	/* EBI Configuration Register */
+#define SFR_CAN		0x48	/* CAN Memories Address-based Register */
 #define SFR_SN0		0x4C	/* Serial Number 0 Register */
 #define SFR_SN1		0x50	/* Serial Number 1 Register */
 #define SFR_AICREDIR	0x54
+#define SFR_L2CC_HRAMC	0x58
+
+/*
+ * Register Fields
+ */
+
+/*--- SFR_DDRCFG: (offset: 0x04) DDR Configuration Register ---*/
+#define AT91C_DDRCFG_FDQIEN	(0x01 << 16)	/* Force DDR_DQ Input Buffer Always On */
+#define AT91C_DDRCFG_FDQSIEN	(0x01 << 17)	/* Force DDF_DQS Input Buffer Always On */
 
 /*---SFR_EBICFG: (offset: 0x40) EBI Configuration Register ----*/
 #define AT91C_EBICFG_DRIVE0	(0x03 << 0)
@@ -65,7 +80,10 @@
 #define		AT91C_EBICFG_BMS_ROM		(0x00 << 16)
 #define		AT91C_EBICFG_BMS_EBI		(0x01 << 16)
 
-/*--- SFR_AICREDIR: (offset: 0x54)----*/
-#define	AICREDIR_KEY	0x5F67B102
+/*---SFR_CAN: (offset: 0x48) CAN Memories Address-based Register ----*/
+#define AT91C_CAN0_MEM_ADDR	(0xffff << 0)
+#define AT91C_CAN0_MEM_ADDR_(addr)	(((addr) & 0xffff) << 0)
+#define AT91C_CAN1_MEM_ADDR	(0xffff << 16)
+#define AT91C_CAN1_MEM_ADDR_(addr)	(((addr) & 0xffff) << 16)
 
 #endif /* #ifndef __AT91_SFR_H__ */

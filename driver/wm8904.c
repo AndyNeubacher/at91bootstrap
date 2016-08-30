@@ -2,14 +2,14 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2014, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -62,15 +62,19 @@ static unsigned int wm8904_get_twi_bus(void)
 {
 	unsigned int bus = 0;
 
+	if (wm8904_twi_bus != 0xff) {
+		bus = wm8904_twi_bus;
+	} else {
 #if defined(CONFIG_CODEC_ON_TWI0)
-	bus = 0;
+		bus = 0;
 #elif defined(CONFIG_CODEC_ON_TWI1)
-	bus = 1;
+		bus = 1;
 #elif defined(CONFIG_CODEC_ON_TWI2)
-	bus = 2;
+		bus = 2;
 #elif defined(CONFIG_CODEC_ON_TWI3)
-	bus = 3;
+		bus = 3;
 #endif
+	}
 
 	return bus;
 }
@@ -84,7 +88,7 @@ static int wm8904_read(unsigned char reg_addr, unsigned short *data)
 
 	ret = twi_read(bus, WM8904_ADDR, reg_addr, 1, (unsigned char *)data, 2);
 	if (ret) {
-		dbg_info("WM8904: Failed to read on TWI #%d\n", bus);
+		dbg_loud("WM8904: Failed to read on TWI bus: %d\n", bus);
 		return -1;
 	}
 
@@ -101,7 +105,7 @@ static int wm8904_write(unsigned char reg_addr, unsigned short data)
 	ret = twi_write(bus, WM8904_ADDR,
 				reg_addr, 1, (unsigned char *)&data, 2);
 	if (ret) {
-		dbg_info("WM8904: Failed to write on TWI #%d\n", bus);
+		dbg_loud("WM8904: Failed to write on TWI bus: %d\n", bus);
 		return -1;
 	}
 
@@ -187,35 +191,35 @@ int wm8904_enter_low_power(void)
 
 	ret = wm8904_chipid();
 	if (ret == -1) {
-		dbg_info("WM8904: Failed to read Chip ID\n");
+		dbg_loud("WM8904: Failed to read Chip ID\n");
 		return -1;
 	}
 
 	ret = wm8904_version();
 	if (ret == -1) {
-		dbg_info("WM8904: Failed to read version\n");
+		dbg_loud("WM8904: Failed to read version\n");
 		return -1;
 	}
 
 	ret = wm8904_reset();
 	if (ret) {
-		dbg_info("WM8904: Failed to issue software reset\n");
+		dbg_loud("WM8904: Failed to issue software reset\n");
 		return -1;
 	}
 
 	ret = wm8904_disable_vmid_ref();
 	if (ret) {
-		dbg_info("WM8904: Failed to disable VMID Control 0\n");
+		dbg_loud("WM8904: Failed to disable VMID Control 0\n");
 		return -1;
 	}
 
 	ret = wm8904_disable_bias();
 	if (ret) {
-		dbg_info("WM8904: Failed to disable Bias Control 0\n");
+		dbg_loud("WM8904: Failed to disable Bias Control 0\n");
 		return -1;
 	}
 
-	dbg_info("WM8904: Enter low power mode\n");
+	dbg_loud("WM8904: Enter Low-power mode\n");
 
 	return 0;
 }

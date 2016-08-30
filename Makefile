@@ -24,7 +24,7 @@ endif
 BINDIR:=$(TOPDIR)/binaries
 
 DATE := $(shell date)
-VERSION := 3.7.1
+VERSION := 3.8.5
 REVISION :=
 SCMINFO := $(shell ($(TOPDIR)/host-utilities/setlocalversion $(TOPDIR)))
 
@@ -148,6 +148,7 @@ CRYSTAL:=$(strip $(subst ",,$(CONFIG_CRYSTAL)))
 
 # driver definitions
 SPI_CLK:=$(strip $(subst ",,$(CONFIG_SPI_CLK)))
+QSPI_CLK:=$(strip $(subst ",,$(CONFIG_QSPI_CLK)))
 SPI_BOOT:=$(strip $(subst ",,$(CONFIG_SPI_BOOT)))
 
 ifeq ($(REVISION),)
@@ -197,31 +198,55 @@ ifeq ($(SYMLINK),)
 SYMLINK=at91bootstrap.bin
 endif
 
-COBJS-y:= $(TOPDIR)/main.o $(TOPDIR)/board/$(BOARDNAME)/$(BOARDNAME).o
+ifeq ($(SYMLINK_BOOT),)
+SYMLINK_BOOT=boot.bin
+endif
+
+COBJS-y:= $(TOPDIR)/main.o
 SOBJS-y:= $(TOPDIR)/crt0_gnu.o
 
-include	lib/libc.mk
+BOARD_LOCATE=$(shell find $(TOPDIR)/board/ -name $(BOARDNAME) -type d)
+ifeq ("$(realpath $(BOARD_LOCATE))", "")
+BOARD_LOCATE=$(shell find $(TOPDIR)/contrib/board/ -name $(BOARDNAME) -type d)
+ifeq ("$(realpath $(BOARD_LOCATE))", "")
+$(error ERROR: *** file: $(BOARD_LOCATE) does not found!)
+endif
+endif
+
+COBJS-y += $(BOARD_LOCATE)/$(BOARDNAME).o
+INCL = $(BOARD_LOCATE)
+
+include	lib/lib.mk
 include	driver/driver.mk
+include	contrib/driver/driver.mk
 include	fs/src/fat.mk
 
 #$(SOBJS-y:.o=.S)
 
 SRCS:= $(COBJS-y:.o=.c)
 OBJS:= $(SOBJS-y) $(COBJS-y)
-INCL=board/$(BOARDNAME)
 GC_SECTIONS=--gc-sections
 
 NOSTDINC_FLAGS=-nostdinc -isystem $(shell $(CC) -print-file-name=include)
 
 CPPFLAGS=$(NOSTDINC_FLAGS) -ffunction-sections -g -Os -Wall \
+	-mno-unaligned-access \
 	-fno-stack-protector -fno-common \
-	-I$(INCL) -Iinclude -Ifs/include \
+	-I$(INCL) -Icontrib/include -Iinclude -Ifs/include \
+	-I$(TOPDIR)/config/at91bootstrap-config \
 	-DAT91BOOTSTRAP_VERSION=\"$(VERSION)$(REV)$(SCMINFO)\" -DCOMPILE_TIME="\"$(DATE)\""
 
-ASFLAGS=-g -Os -Wall -I$(INCL) -Iinclude
+ASFLAGS=-g -Os -Wall -I$(INCL) -Iinclude -Icontrib/include
 
 include	toplevel_cpp.mk
 include	board/board_cpp.mk
+
+ifneq ("$(wildcard $(BOARD_LOCATE)/board.mk)", "")
+include $(BOARD_LOCATE)/board.mk
+else
+$(warning WARNING: *** file: $(BOARD_LOCATE)/board.mk are not found!)
+endif
+
 include	driver/driver_cpp.mk
 
 ifeq ($(CONFIG_ENTER_NWD), y)
@@ -236,7 +261,7 @@ endif
 #    --cref:    add cross reference to map file
 #  -lc 	   : 	tells the linker to tie in newlib
 #  -lgcc   : 	tells the linker to tie in newlib
-LDFLAGS+=-nostartfiles -Map=$(BINDIR)/$(BOOT_NAME).map --cref -static
+LDFLAGS=-nostartfiles -Map=$(BINDIR)/$(BOOT_NAME).map --cref -static
 LDFLAGS+=-T $(link_script) $(GC_SECTIONS) -Ttext $(LINK_ADDR)
 
 ifneq ($(DATA_SECTION_ADDR),)
@@ -257,7 +282,7 @@ TARGETS=$(AT91BOOTSTRAP)
 
 PHONY:=all
 
-all: CheckCrossCompile PrintFlags $(AT91BOOTSTRAP) ChkFileSize
+all: CheckCrossCompile PrintFlags $(AT91BOOTSTRAP) ChkFileSize ${AT91BOOTSTRAP}.pmecc
 
 CheckCrossCompile:
 	@( if [ "$(HOSTARCH)" != "arm" ]; then \
@@ -284,10 +309,11 @@ PrintFlags:
 $(AT91BOOTSTRAP): $(OBJS)
 	$(if $(wildcard $(BINDIR)),,mkdir -p $(BINDIR))
 	@echo "  LD        "$(BOOT_NAME).elf
-	@$(LD) $(LDFLAGS) -n -o $(BINDIR)/$(BOOT_NAME).elf $(OBJS)
+	$(Q)$(LD) $(LDFLAGS) -n -o $(BINDIR)/$(BOOT_NAME).elf $(OBJS)
 #	@$(OBJCOPY) --strip-debug --strip-unneeded $(BINDIR)/$(BOOT_NAME).elf -O binary $(BINDIR)/$(BOOT_NAME).bin
 	@$(OBJCOPY) --strip-all $(BINDIR)/$(BOOT_NAME).elf -O binary $@
 	@ln -sf $(BOOT_NAME).bin ${BINDIR}/${SYMLINK}
+	@ln -sf $(BOOT_NAME).bin ${BINDIR}/${SYMLINK_BOOT}
 
 %.o : %.c .config
 	@echo "  CC        "$<
@@ -296,6 +322,13 @@ $(AT91BOOTSTRAP): $(OBJS)
 %.o : %.S .config
 	@echo "  AS        "$<
 	@$(AS) $(ASFLAGS)  -c -o $@  $<
+
+$(AT91BOOTSTRAP).pmecc: $(AT91BOOTSTRAP)
+ifeq ($(CONFIG_NANDFLASH), y)
+ifeq ($(CONFIG_USE_PMECC), y)
+	$(Q)./scripts/addpmecchead.py $(AT91BOOTSTRAP) $(AT91BOOTSTRAP).pmecc $(BOARDNAME)
+endif
+endif
 
 PHONY+= bootstrap
 
@@ -306,6 +339,7 @@ ChkFileSize: $(AT91BOOTSTRAP)
 	  if [ $$? -ne 0 ] ; then \
 		rm $(BINDIR)/$(BOOT_NAME).bin ;\
 		rm ${BINDIR}/${SYMLINK}; \
+		rm ${BINDIR}/${SYMLINK_BOOT}; \
 		exit 3; \
 	  fi ; \
 	  echo "Size of $(BOOT_NAME).bin is $$fsize bytes"; \
@@ -313,6 +347,7 @@ ChkFileSize: $(AT91BOOTSTRAP)
 		echo "[Failed***] It's too big to fit into SRAM area. the support maxium size is $(BOOTSTRAP_MAXSIZE)"; \
 		rm $(BINDIR)/$(BOOT_NAME).bin ;\
 		rm ${BINDIR}/${SYMLINK}; \
+		rm ${BINDIR}/${SYMLINK_BOOT}; \
 		exit 2;\
 	  else \
 	  	echo "[Succeeded] It's OK to fit into SRAM area"; \
@@ -324,7 +359,7 @@ endif  # HAVE_DOT_CONFIG
 PHONY+= rebuild
 
 %_defconfig:
-	@(conf_file=`find ./board -name $@`; \
+	@(conf_file=`find ./ -name $@`; \
 	if [ "$$conf_file"x != "x" ]; then \
 		cp $$conf_file .config; \
 	else \
@@ -334,7 +369,7 @@ PHONY+= rebuild
 	@$(MAKE) defconfig
 
 update:
-	cp .config board/$(BOARDNAME)/$(BOARDNAME)_defconfig
+	cp .config $(BOARD_LOCATE)/$(BOARDNAME)_defconfig
 
 no-cross-compiler:
 	@echo

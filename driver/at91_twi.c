@@ -2,14 +2,14 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2014, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -30,11 +30,29 @@
 #include "arch/at91_twi.h"
 #include "div.h"
 #include "debug.h"
+#include "pmc.h"
 
-unsigned int at91_twi0_base;
-unsigned int at91_twi1_base;
-unsigned int at91_twi2_base;
-unsigned int at91_twi3_base;
+#define TWI_CLOCK	400000
+
+unsigned int twi_init_done;
+
+unsigned char hdmi_twi_bus;
+unsigned char wm8904_twi_bus;
+unsigned char act8865_twi_bus;
+unsigned char at24xx_twi_bus;
+
+#if defined(CONFIG_TWI0)
+static unsigned int at91_twi0_base;
+#endif
+#if defined(CONFIG_TWI1)
+static unsigned int at91_twi1_base;
+#endif
+#if defined(CONFIG_TWI2)
+static unsigned int at91_twi2_base;
+#endif
+#if defined(CONFIG_TWI3)
+static unsigned int at91_twi3_base;
+#endif
 
 static inline unsigned int twi_reg_read(unsigned int twi_base,
 					unsigned int offset)
@@ -84,17 +102,20 @@ static unsigned int get_twi_base(unsigned int bus)
 	return twi_base;
 }
 
-int twi_configure_master_mode(unsigned int bus,
+static int twi_configure_master_mode(unsigned int bus,
 			unsigned int bus_clock, unsigned int twi_clock)
 {
 	unsigned int loop = 1;
 	unsigned int clkdiv, ckdiv = 0;
 	unsigned int clock =  bus_clock;
 	unsigned int twi_base;
+	unsigned int reg, version;
 
 	twi_base = get_twi_base(bus);
 	if (!twi_base)
 		return -1;
+
+	version = twi_reg_read(twi_base, TWI_VERSION);
 
 	twi_reg_write(twi_base, TWI_CR, TWI_CR_SWRST);
 	twi_reg_read(twi_base, TWI_RHR);
@@ -111,8 +132,12 @@ int twi_configure_master_mode(unsigned int bus,
 			ckdiv++;
 	}
 
-	twi_reg_write(twi_base, TWI_CWGR,
-				((ckdiv << 16) | (clkdiv << 8) | clkdiv));
+	reg = (ckdiv << 16) | (clkdiv << 8) | clkdiv;
+
+	if (version >= 0x704)
+		reg |= TWI_CWGR_HOLD_(25);
+
+	twi_reg_write(twi_base, TWI_CWGR, reg);
 
 	return 0;
 }
@@ -183,8 +208,10 @@ int twi_read(unsigned int bus, unsigned char device_addr,
 	unsigned int twi_base;
 
 	twi_base = get_twi_base(bus);
-	if (!twi_base)
+	if (!twi_base) {
+		dbg_loud("%s: the base address is NULL\n", __func__);
 		return -1;
+	}
 
 	twi_startread(twi_base, device_addr, internal_addr, iaddr_size);
 
@@ -257,4 +284,43 @@ int twi_write(unsigned int bus, unsigned char device_addr,
 	}
 
 	return 0;
+}
+
+void twi_init(void)
+{
+	unsigned int bus_clock = at91_get_ahb_clock();
+
+#if defined(CONFIG_TWI0)
+	at91_twi0_base = at91_twi0_hw_init();
+	if (at91_twi0_base)
+		twi_configure_master_mode(0, bus_clock, TWI_CLOCK);
+#endif
+#if defined(CONFIG_TWI1)
+	at91_twi1_base = at91_twi1_hw_init();
+	if (at91_twi1_base)
+		twi_configure_master_mode(1, bus_clock, TWI_CLOCK);
+#endif
+#if defined(CONFIG_TWI2)
+	at91_twi2_base = at91_twi2_hw_init();
+	if (at91_twi2_base)
+		twi_configure_master_mode(2, bus_clock, TWI_CLOCK);
+#endif
+#if defined(CONFIG_TWI3)
+	at91_twi3_base = at91_twi3_hw_init();
+	if (at91_twi3_base)
+		twi_configure_master_mode(3, bus_clock, TWI_CLOCK);
+#endif
+
+	hdmi_twi_bus	= 0xff;
+	wm8904_twi_bus	= 0xff;
+	act8865_twi_bus	= 0xff;
+	at24xx_twi_bus	= 0xff;
+
+#if defined(CONFIG_AUTOCONFIG_TWI_BUS)
+	dbg_loud("Auto-Config the TWI Bus by the board\n");
+
+	at91_board_config_twi_bus();
+#endif
+
+	twi_init_done = 1;
 }

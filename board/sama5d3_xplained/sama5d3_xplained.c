@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2014, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,6 @@
 #include "ddramc.h"
 #include "spi.h"
 #include "gpio.h"
-#include "slowclk.h"
 #include "timer.h"
 #include "watchdog.h"
 #include "string.h"
@@ -44,9 +43,8 @@
 #include "arch/at91_pio.h"
 #include "arch/at91_ddrsdrc.h"
 #include "sama5d3_xplained.h"
-#include "macb.h"
-#include "twi.h"
 #include "act8865.h"
+#include "twi.h"
 
 static void at91_dbgu_hw_init(void)
 {
@@ -234,11 +232,11 @@ static void at91_special_pio_output_low(void)
 }
 #endif
 
-#if defined(CONFIG_PM_EXTERNAL_DEVICES)
-#if defined(CONFIG_MACB)
 #if defined(CONFIG_MAC0_PHY)
-static void gmac_hw_init(void)
+unsigned int at91_eth0_hw_init(void)
 {
+	unsigned int base_addr = AT91C_BASE_GMAC;
+
 	const struct pio_desc macb_pins[] = {
 		{"GMDC",	AT91C_PIN_PB(16), 0, PIO_DEFAULT, PIO_PERIPH_A},
 		{"GMDIO",	AT91C_PIN_PB(17), 0, PIO_DEFAULT, PIO_PERIPH_A},
@@ -247,12 +245,18 @@ static void gmac_hw_init(void)
 
 	pio_configure(macb_pins);
 	pmc_enable_periph_clock(AT91C_ID_PIOB);
+
+	pmc_enable_periph_clock(AT91C_ID_GMAC);
+
+	return base_addr;
 }
 #endif
 
 #if defined(CONFIG_MAC1_PHY)
-static void emac_hw_init(void)
+unsigned int at91_eth1_hw_init(void)
 {
+	unsigned int base_addr = AT91C_BASE_EMAC;
+
 	const struct pio_desc macb_pins[] = {
 		{"EMDC",	AT91C_PIN_PC(8), 0, PIO_DEFAULT, PIO_PERIPH_A},
 		{"EMDIO",	AT91C_PIN_PC(9), 0, PIO_DEFAULT, PIO_PERIPH_A},
@@ -261,59 +265,37 @@ static void emac_hw_init(void)
 
 	pio_configure(macb_pins);
 	pmc_enable_periph_clock(AT91C_ID_PIOC);
-}
-#endif
-
-static int phys_enter_power_down(void)
-{
-	struct mii_bus macb_mii_bus;
-
-#if defined(CONFIG_MAC0_PHY)
-	gmac_hw_init();
-
-	macb_mii_bus.name = "GMAC KSZ9011RNI";
-	macb_mii_bus.reg_base = (void *)AT91C_BASE_GMAC;
-	macb_mii_bus.phy_addr = 1;
-
-	pmc_enable_periph_clock(AT91C_ID_GMAC);
-
-	if (phy_power_down_mode(&macb_mii_bus)) {
-		dbg_loud("%s: Failed to enter power down mode\n",
-						macb_mii_bus.name);
-	}
-
-	pmc_disable_periph_clock(AT91C_ID_GMAC);
-#endif
-
-#if defined(CONFIG_MAC1_PHY)
-	emac_hw_init();
-
-	macb_mii_bus.name = "EMAC KSZ8081RNB";
-	macb_mii_bus.reg_base = (void *)AT91C_BASE_EMAC;
-	macb_mii_bus.phy_addr = 1;
 
 	pmc_enable_periph_clock(AT91C_ID_EMAC);
 
-	if (phy_power_down_mode(&macb_mii_bus)) {
-		dbg_loud("%s: Failed to enter power down mode\n",
-						macb_mii_bus.name);
-	}
-
-	pmc_disable_periph_clock(AT91C_ID_EMAC);
+	return base_addr;
+}
 #endif
 
+#if defined(CONFIG_MACB)
+void at91_disable_mac_clock(void)
+{
+#if defined(CONFIG_MAC0_PHY)
+	pmc_disable_periph_clock(AT91C_ID_GMAC);
+#endif
+#if defined(CONFIG_MAC1_PHY)
+	pmc_disable_periph_clock(AT91C_ID_EMAC);
+#endif
+}
+#endif
+
+#if defined(CONFIG_TWI0)
+unsigned int at91_twi0_hw_init(void)
+{
 	return 0;
 }
-#endif	/* #if defined(CONFIG_MACB) */
-#endif	/* #if defined(CONFIG_PM_EXTERNAL_DEVICES) */
-
-#ifdef CONFIG_TWI
-
-#define TWI_CLOCK	400000
+#endif
 
 #if defined(CONFIG_TWI1)
-static void at91_twi1_hw_init(void)
+unsigned int at91_twi1_hw_init(void)
 {
+	unsigned int base_addr = AT91C_BASE_TWI1;
+
 	const struct pio_desc twi_pins[] = {
 		{"TWD", AT91C_PIN_PC(26), 0, PIO_DEFAULT, PIO_PERIPH_B},
 		{"TWCK", AT91C_PIN_PC(27), 0, PIO_DEFAULT, PIO_PERIPH_B},
@@ -324,25 +306,27 @@ static void at91_twi1_hw_init(void)
 	pmc_enable_periph_clock(AT91C_ID_PIOC);
 
 	pmc_enable_periph_clock(AT91C_ID_TWI1);
+
+	return base_addr;
 }
 #endif
 
-static void twi_init(void)
+#if defined(CONFIG_TWI2)
+unsigned int at91_twi2_hw_init(void)
 {
-	unsigned int bus_clock = MASTER_CLOCK;
-
-#if defined(CONFIG_TWI1)
-	at91_twi1_base = AT91C_BASE_TWI1;
-	at91_twi1_hw_init();
-	twi_configure_master_mode(1, bus_clock, TWI_CLOCK);
-#else
-#error "No proper TWI bus defined"
-#endif
+	return 0;
 }
-#endif /* #ifdef CONFIG_TWI */
+#endif
 
-#ifdef CONFIG_ACT8865
-static int sama5d3ek_act8865_set_reg_voltage(void)
+#if defined(CONFIG_AUTOCONFIG_TWI_BUS)
+void at91_board_config_twi_bus(void)
+{
+	act8865_twi_bus	= 1;
+}
+#endif
+
+#if defined(CONFIG_ACT8865_SET_VOLTAGE)
+int at91_board_act8865_set_reg_voltage(void)
 {
 	unsigned char reg, value;
 	int ret;
@@ -356,28 +340,25 @@ static int sama5d3ek_act8865_set_reg_voltage(void)
 	value = ACT8865_1V25;
 	ret = act8865_set_reg_voltage(reg, value);
 	if (ret) {
-		dbg_info("ACT8865: Failed to make REG2 output 1250mV\n");
+		dbg_loud("ACT8865: Failed to make REG2 output 1250mV\n");
 		return -1;
 	}
-
-	dbg_info("ACT8865: The REG2 output 1250mV\n");
 
 	/* Enable REG5 output 3.3V */
 	reg = REG5_0;
 	value = ACT8865_3V3;
 	ret = act8865_set_reg_voltage(reg, value);
 	if (ret) {
-		dbg_info("ACT8865: Failed to make REG5 output 3300mV\n");
+		dbg_loud("ACT8865: Failed to make REG5 output 3300mV\n");
 		return -1;
 	}
-
-	dbg_info("ACT8865: The REG5 output 3300mV\n");
 
 	return 0;
 }
 #endif
 
-static void at91_disable_smd_clock(void)
+#if defined(CONFIG_PM)
+void at91_disable_smd_clock(void)
 {
 	/*
 	 * set pin DIBP to pull-up and DIBN to pull-down
@@ -390,6 +371,7 @@ static void at91_disable_smd_clock(void)
 	pmc_disable_periph_clock(AT91C_ID_SMD);
 	pmc_disable_system_clock(AT91C_PMC_SMDCK);
 }
+#endif
 
 #ifdef CONFIG_HW_INIT
 void hw_init(void)
@@ -403,31 +385,24 @@ void hw_init(void)
 	 */
 
 	/* Configure PLLA = MOSC * (PLL_MULA + 1) / PLL_DIVA */
-	pmc_cfg_plla(PLLA_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_plla(PLLA_SETTINGS);
 
 	/* Initialize PLLA charge pump */
 	pmc_init_pll(AT91C_PMC_IPLLA_3);
 
 	/* Switch PCK/MCK on Main clock output */
-	pmc_cfg_mck(BOARD_PRESCALER_MAIN_CLOCK, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(BOARD_PRESCALER_MAIN_CLOCK);
 
 	/* Switch PCK/MCK on PLLA output */
-	pmc_cfg_mck(BOARD_PRESCALER_PLLA, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(BOARD_PRESCALER_PLLA);
 
 #ifdef CONFIG_USER_HW_INIT
 	/* Set GMAC & EMAC pins to output low */
 	at91_special_pio_output_low();
 #endif
 
-	/* Disable the software modem clock */
-	at91_disable_smd_clock();
-
 	/* Init timer */
 	timer_init();
-
-#ifdef CONFIG_SCLK
-	slowclk_enable_osc32();
-#endif
 
 	/* initialize the dbgu */
 	initialize_dbgu();
@@ -436,30 +411,6 @@ void hw_init(void)
 	/* Initialize MPDDR Controller */
 	ddramc_init();
 #endif
-
-#ifdef CONFIG_TWI
-	twi_init();
-#endif
-
-#ifdef CONFIG_ACT8865
-	/* Set ACT8865 REG power saving mode */
-	act8865_set_power_saving_mode();
-
-	/* Set ACT8865 output voltage */
-	sama5d3ek_act8865_set_reg_voltage();
-
-	/* Dsiable ACT8865 I2C interface */
-	if (act8865_workaround_disable_i2c())
-		while (1)
-			;
-#endif
-
-#ifdef CONFIG_PM_EXTERNAL_DEVICES
-#ifdef CONFIG_MACB
-	/* Make PHYs to power down mode */
-	phys_enter_power_down();
-#endif
-#endif	/* #ifdef CONFIG_PM_EXTERNAL_DEVICES */
 }
 #endif /* #ifdef CONFIG_HW_INIT */
 
@@ -485,10 +436,12 @@ void at91_spi0_hw_init(void)
 #endif /* #ifdef CONFIG_DATAFLASH */
 
 #ifdef CONFIG_SDCARD
-static void sdcard_set_of_name_board(char *of_name)
+#ifdef CONFIG_OF_LIBFDT
+void at91_board_set_dtb_name(char *of_name)
 {
 	strcat(of_name, "at91-sama5d3_xplained.dtb");
 }
+#endif
 
 void at91_mci0_hw_init(void)
 {
@@ -513,9 +466,6 @@ void at91_mci0_hw_init(void)
 
 	/* Enable the clock */
 	pmc_enable_periph_clock(AT91C_ID_HSMCI0);
-
-	/* Set of name function pointer */
-	sdcard_set_of_name = &sdcard_set_of_name_board;
 }
 #endif /* #ifdef CONFIG_SDCARD */
 

@@ -2,14 +2,14 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2014, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -29,6 +29,7 @@
 #include "board.h"
 #include "debug.h"
 #include "macb.h"
+#include "pmc.h"
 
 /*
  * EMAC & GMAC Register
@@ -131,6 +132,12 @@
 #define BMCR_RESET		(0x01 << 15)	/* Software Reset */
 
 #define PHY_ID_NUMBER		(0x0022)
+
+struct mii_bus {
+	const char *name;
+	void *reg_base;
+	unsigned int phy_addr;
+};
 
 static inline unsigned int macb_read(void *base, unsigned int offset)
 {
@@ -250,7 +257,7 @@ static int macb_is_gem(struct mii_bus *bus)
 static unsigned int gem_mdc_clk_div(void)
 {
 	unsigned int clk_div;
-	unsigned int mck = MASTER_CLOCK;
+	unsigned int mck = at91_get_ahb_clock();
 
 	if (mck < 20000000)
 		clk_div = GMAC_NCFGR_CLK_MCK_8;
@@ -271,7 +278,7 @@ static unsigned int gem_mdc_clk_div(void)
 static unsigned int macb_mdc_clk_div(void)
 {
 	unsigned int clk_div;
-	unsigned int mck = MASTER_CLOCK;
+	unsigned int mck = at91_get_ahb_clock();
 
 	if (mck < 20000000)
 		clk_div = EMAC_NCFGR_CLK_MCK_8;
@@ -344,7 +351,7 @@ static int phy_power_down(struct mii_bus *bus)
 	return 0;
 }
 
-int phy_power_down_mode(struct mii_bus *bus)
+static int phy_power_down_mode(struct mii_bus *bus)
 {
 	unsigned int phy_addr;
 	int ret = 0;
@@ -374,9 +381,45 @@ int phy_power_down_mode(struct mii_bus *bus)
 		goto error;
 	}
 
-	dbg_info("PHY: %s: Enter power down mode\n", bus->name);
+	dbg_loud("PHY: %s: Enter power down mode\n", bus->name);
 
 error:
 	macb_enable_managementport(bus, 0);
 	return ret;
+}
+
+int phys_enter_power_down(void)
+{
+	struct mii_bus macb_mii_bus;
+	unsigned int base_addr;
+
+#if defined(CONFIG_MAC0_PHY)
+	base_addr = at91_eth0_hw_init();
+
+	macb_mii_bus.name = "ETH0 PHY";
+	macb_mii_bus.reg_base = (void *)base_addr;
+	macb_mii_bus.phy_addr = 1;
+
+	if (phy_power_down_mode(&macb_mii_bus)) {
+		dbg_loud("%s: Failed to enter power down mode\n",
+						macb_mii_bus.name);
+	}
+#endif
+
+#if defined(CONFIG_MAC1_PHY)
+	base_addr = at91_eth1_hw_init();
+
+	macb_mii_bus.name = "ETH1 PHY";
+	macb_mii_bus.reg_base = (void *)base_addr;
+	macb_mii_bus.phy_addr = 1;
+
+	if (phy_power_down_mode(&macb_mii_bus)) {
+		dbg_loud("%s: Failed to enter power down mode\n",
+						macb_mii_bus.name);
+	}
+#endif
+
+	at91_disable_mac_clock();
+
+	return 0;
 }

@@ -2,14 +2,14 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2007, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -43,10 +43,6 @@
 #include "sdramc.h"
 #include "watchdog.h"
 #include "at91sam9xeek.h"
-
-#ifdef CONFIG_USER_HW_INIT
-extern void hw_init_hook(void);
-#endif
 
 #ifdef CONFIG_DEBUG
 static void at91_dbgu_hw_init(void)
@@ -145,16 +141,13 @@ void hw_init(void)
 	 *  PCK = MCK = MOSC
 	 */
 	/* Configure PLLA = MOSC * (PLL_MULA + 1) / PLL_DIVA */
-	pmc_cfg_plla(PLLA_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_plla(PLLA_SETTINGS);
 
 	/* PCK = PLLA = 2 * MCK */
-	pmc_cfg_mck(MCKR_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(MCKR_SETTINGS);
 
 	/* Switch MCK on PLLA output */
-	pmc_cfg_mck(MCKR_CSS_SETTINGS, PLL_LOCK_TIMEOUT);
-
-	/* Configure PLLB */
-	//pmc_cfg_pllb(PLLB_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(MCKR_CSS_SETTINGS);
 
 	/* Enable External Reset */
 	writel(AT91C_RSTC_KEY_UNLOCK | AT91C_RSTC_URSTEN, AT91C_BASE_RSTC + RSTC_RMR);
@@ -167,10 +160,6 @@ void hw_init(void)
 #ifdef CONFIG_SDRAM
 	/* Configure SDRAM Controller */
 	sdramc_init();
-#endif
-
-#ifdef CONFIG_USER_HW_INIT
-	hw_init_hook();
 #endif
 }
 #endif /* #ifdef CONFIG_HW_INIT */
